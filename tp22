@@ -6,7 +6,7 @@ import numpy as np
 class TP2App:
     def __init__(self, root):
         self.root = root
-        self.root.title("TP2: Aritmética de Píxeles - Procesamiento de Imágenes")
+        self.root.title("TP2: Aritmética de Píxeles")
         self.root.geometry("900x700")
         
         self.img1_path = None
