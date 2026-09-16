@@ -1,0 +1,149 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from PIL import Image, ImageTk
+import numpy as np
+
+class TP2App:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("TP2: Aritmética de Píxeles - Procesamiento de Imágenes")
+        self.root.geometry("900x700")
+        
+        self.img1_path = None
+        self.img2_path = None
+        self.img1_np = None
+        self.img2_np = None
+        self.result_np = None
+
+        # --- Panel Superior: Botones para cargar imágenes ---
+        frame_top = tk.Frame(root, pady=10)
+        frame_top.pack()
+
+        btn_img1 = tk.Button(frame_top, text="Cargar Imagen 1", command=lambda: self.cargar_imagen(1), width=20, bg="#d0f0c0")
+        btn_img1.grid(row=0, column=0, padx=10)
+
+        self.lbl_img1 = tk.Label(frame_top, text="Sin imagen 1", fg="gray")
+        self.lbl_img1.grid(row=1, column=0)
+
+        btn_img2 = tk.Button(frame_top, text="Cargar Imagen 2", command=lambda: self.cargar_imagen(2), width=20, bg="#ffcccb")
+        btn_img2.grid(row=0, column=1, padx=10)
+
+        self.lbl_img2 = tk.Label(frame_top, text="Sin imagen 2", fg="gray")
+        self.lbl_img2.grid(row=1, column=1)
+
+        # --- Panel Central: Opciones del TP2 (Separadas) ---
+        frame_ops = tk.LabelFrame(root, text=" Operaciones del TP2 ", padx=10, pady=10)
+        frame_ops.pack(fill="x", padx=20, pady=10)
+
+        tk.Button(frame_ops, text="1. Suma/Resta Clampeada/Prom. (RGB)", command=lambda: self.operar("rgb_aritmetica"), width=35).grid(row=0, column=0, padx=5, pady=5)
+        tk.Button(frame_ops, text="2. Suma/Resta en YIQ", command=lambda: self.operar("yiq_aritmetica"), width=35).grid(row=0, column=1, padx=5, pady=5)
+        tk.Button(frame_ops, text="3. Producto y Cociente", command=lambda: self.operar("prod_cociente"), width=35).grid(row=1, column=0, padx=5, pady=5)
+        tk.Button(frame_ops, text="4. Resta con Valor Absoluto", command=lambda: self.operar("resta_abs"), width=35).grid(row=1, column=1, padx=5, pady=5)
+        
+        # Punto 5 separado en dos botones independientes
+        tk.Button(frame_ops, text="5. If-lighter (Máximo)", command=lambda: self.operar("if_lighter"), width=35).grid(row=2, column=0, padx=5, pady=5)
+        tk.Button(frame_ops, text="5. If-darker (Mínimo)", command=lambda: self.operar("if_darker"), width=35).grid(row=2, column=1, padx=5, pady=5)
+
+        # --- Panel Inferior: Visualización del Resultado ---
+        frame_res = tk.Frame(root, pady=10)
+        frame_res.pack(fill="both", expand=True)
+
+        self.lbl_resultado_titulo = tk.Label(frame_res, text="Resultado de la Operación:", font=("Arial", 11, "bold"))
+        self.lbl_resultado_titulo.pack()
+
+        self.canvas_resultado = tk.Label(frame_res, text="[Aquí se mostrará la imagen resultante]", bg="#f0f0f0")
+        self.canvas_resultado.pack(pady=5)
+
+    def cargar_imagen(self, num):
+        path = filedialog.askopenfilename(filetypes=[("Imágenes", "*.jpg *.jpeg *.png *.bmp")])
+        if not path:
+            return
+        
+        img = Image.open(path).convert("RGB")
+        img_np = np.array(img).astype(np.float32) / 255.0
+
+        if num == 1:
+            self.img1_path = path
+            self.img1_np = img_np
+            self.lbl_img1.config(text=path.split("/")[-1], fg="green")
+        else:
+            self.img2_path = path
+            self.img2_np = img_np
+            self.lbl_img2.config(text=path.split("/")[-1], fg="green")
+
+    def verificar_imagenes(self):
+        if self.img1_np is None or self.img2_np is None:
+            messagebox.showwarning("Atención", "Por favor cargá ambas imágenes antes de operar.")
+            return False
+        
+        if self.img1_np.shape != self.img2_np.shape:
+            img2_pil = Image.fromarray((self.img2_np * 255).astype(np.uint8))
+            img2_pil = img2_pil.resize((self.img1_np.shape[1], self.img1_np.shape[0]))
+            self.img2_np = np.array(img2_pil).astype(np.float32) / 255.0
+        return True
+
+    def mostrar_resultado(self, img_np, titulo="Resultado"):
+        img_uint8 = np.clip(img_np * 255.0, 0, 255).astype(np.uint8)
+        img_pil = Image.fromarray(img_uint8)
+        
+        # Tamaño grande y buen remuestreo para que no se vea miniatura
+        img_pil.thumbnail((600, 450), Image.Resampling.LANCZOS)
+        
+        self.img_tk = ImageTk.PhotoImage(img_pil)
+        self.canvas_resultado.config(image=self.img_tk, text="", width=0, height=0)
+        self.lbl_resultado_titulo.config(text=f"Resultado: {titulo}")
+
+    def rgb2yiq(self, rgb):
+        transform = np.array([
+            [0.299, 0.587, 0.114],
+            [0.5957, -0.2744, -0.3212],
+            [0.2115, -0.5227, 0.3112]
+        ])
+        return np.dot(rgb, transform.T)
+
+    def yiq2rgb(self, yiq):
+        transform_inv = np.array([
+            [1.0, 0.956, 0.621],
+            [1.0, -0.27208, -0.6474],
+            [1.0, -1.106, 1.703]
+        ])
+        return np.dot(yiq, transform_inv.T)
+
+    def operar(self, tipo):
+        if not self.verificar_imagenes():
+            return
+        
+        i1 = self.img1_np
+        i2 = self.img2_np
+
+        if tipo == "rgb_aritmetica":
+            res = np.clip(i1 + i2, 0.0, 1.0)
+            self.mostrar_resultado(res, "Suma Clampeada RGB")
+
+        elif tipo == "yiq_aritmetica":
+            yiq1 = self.rgb2yiq(i1)
+            yiq2 = self.rgb2yiq(i2)
+            yiq_res = yiq1 + yiq2
+            res = np.clip(self.yiq2rgb(yiq_res), 0.0, 1.0)
+            self.mostrar_resultado(res, "Suma en espacio YIQ")
+
+        elif tipo == "prod_cociente":
+            res = np.clip(i1 * i2, 0.0, 1.0)
+            self.mostrar_resultado(res, "Producto de Imágenes")
+
+        elif tipo == "resta_abs":
+            res = np.abs(i1 - i2)
+            self.mostrar_resultado(res, "Resta con Valor Absoluto")
+
+        elif tipo == "if_lighter":
+            res = np.maximum(i1, i2)
+            self.mostrar_resultado(res, "If-lighter (Máximo)")
+
+        elif tipo == "if_darker":
+            res = np.minimum(i1, i2)
+            self.mostrar_resultado(res, "If-darker (Mínimo)")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = TP2App(root)
+    root.mainloop()
